@@ -1,0 +1,172 @@
+// Carga de datos
+mongoimport --verbose --db miscelanea --collection books --file C:\Users\Yo\Downloads\act-2-companies\act-2-companies.json
+mongoimport --verbose --db miscelanea --collection books --file C:\Users\Yo\Downloads\act-2-companies\act-2-books.json
+
+// De cada colección extrae un documento donde se muestren dichos campos y visualízalo de forma «bonita»
+
+db.companies.find().limit(1).pretty()
+db.books.find().limit(1).pretty()
+
+// Identifica todas las distintas categorías de la colección books.
+
+db.books.distinct(“categories”).
+
+// Identifica los distintos estados (status) de la colección books.
+
+db.books.distinct("status").
+
+// Utiliza la condición de la consulta anterior para recuperar aquellos libros que posean exactamente dos autos y que estén publicados. Muestra sólo los campos: title, longDescripcion, status y authors.
+
+db.getCollection('books').find({authors:{$size:2},status:"PUBLISH"},{title:1,longDescription:1,status:1,authors:1})
+
+// ¿Cuál es el tamaño de la colección (en bytes)?
+
+db.getCollection('books').stats().size
+
+// ¿Cuántos libros tiene la colección?
+
+db.getCollection('books').count()
+db.getCollection('books').distinct("title").length
+db.getCollection('books').distinct("isbn").length
+
+// ¿Cuántos libros tienen 200 o más páginas?
+
+db.getCollection('books').count({pageCount: {$gte: 200}})
+
+// ¿Cuántos libros tienen entre 300 y 600 páginas? [300,600]
+
+db.getCollection('books').count({pageCount: {$gte: 300, $lte: 600}})
+
+// ¿Cuántos libros tienen 0 páginas y cuántos no?
+
+db.getCollection('books').aggregate([
+    {
+        $group: {
+            _id: null,
+            countWithZeroPages: { $sum: { $cond: [{ $eq: ["$pageCount", 0] }, 1, 0] } },
+            countWithoutZeroPages: { $sum: { $cond: [{ $ne: ["$pageCount", 0] }, 1, 0] } }
+        }
+    }
+])
+
+// ¿Cuántos libros han sido publicados y cuántos no?
+
+db.getCollection('books').aggregate([
+
+    {
+        $group: {
+            _id: null,
+            countWithPublishStatus: { $sum: { $cond: [{ $eq: ["$status", "PUBLISH"] }, 1, 0] } },
+            countWithoutPublishStatus: { $sum: { $cond: [{ $ne: ["$status", "PUBLISH"] }, 1, 0] } }
+        }
+    }
+])
+
+// ¿Cuál es el tamaño de la colección (en bytes)?
+
+db.getCollection(‘companies’).stats().size
+
+// ¿Cuántas compañías tiene la colección?
+
+db.getCollection('companies').count()
+db.getCollection('companies').distinct("name").length
+
+// ¿Cuántas compañías se fundaron en los años 1996,1997,2001 y 2005 respectivamente?
+
+db.getCollection('companies').aggregate([
+  {
+    $facet: {
+      "count_1996": [{ $match: { founded_year: 1996 } }, { $count: "count" }],
+      "count_1997": [{ $match: { founded_year: 1997 } }, { $count: "count" }],
+      "count_2001": [{ $match: { founded_year: 2001 } }, { $count: "count" }],
+      "count_2005": [{ $match: { founded_year: 2005 } }, { $count: "count" }]
+    }
+  }
+])
+
+// Lista las compañías que se dedican a “web” o “mobile” y recupera: el nombre, descripción, número de empleados, email, año, mes y día de su fundación.
+
+db.getCollection('companies').find(
+    { 
+        $or: [ 
+            { category_code: "web" }, 
+            { category_code: "mobile" } 
+        ] 
+    },
+    { 
+        name: 1, 
+        overview: 1, 
+        number_of_employees: 1, 
+        email_address: 1, 
+        created_at: 1 
+    }
+)
+
+// Lista las compañías que se dedican a videojuegos y muéstralas en orden descendente según el año en que fueron fundadas.
+
+db.getCollection('companies').find({category_code:"games_video"}).sort({founded_year: -1})
+
+// ¿Cuántas compañías tienen 600 o más empleados?
+
+db.getCollection('companies').count({number_of_employees: {$gte: 600}})
+
+// Recupera el nombre, la URL, el usuario de Twitter y el número de empleados de las compañías fundadas entre los años 2001 y 2005, ambos incluidos, que cuenten con 500 o más empleados y que se dediquen a los videojuegos o a la música. ¿Alguna compañía se dedica a los videojuegos y a la música a la vez?
+
+
+db.getCollection('companies').find({
+    founded_year: { $gte: 2001, $lte: 2005 },
+    number_of_employees: { $gte: 500 },
+    $or: [
+        { category_code: "games_video" },
+        { category_code: "music" }
+    ]
+}, {
+    name: 1,
+    homepage_url: 1,
+    twitter_username: 1,
+    number_of_employees: 1,
+    founded_year: 1,
+    _id: 0
+})
+
+
+// Para listar las compañías que se dediquen a los videojuegos y a la música a la vez puede utilizarse una consulta find sencilla con un $and:
+
+db.getCollection('companies').find({
+    $and: [
+        { category_code: "games_video" },
+        { category_code: "music" }
+    ]
+})
+
+
+// Lista las empresas que cuentan con única y exclusivamente 2 oficinas en la ciudad de San Francisco.
+
+db.getCollection('companies').find({
+    $and: [
+        { "offices.0.city": "San Francisco" },
+        { "offices.1.city": "San Francisco" },
+        { "offices.2": { $exists: false } }
+    ]
+})
+
+
+// Lista el nombre, el mes y día de adquisición de las empresas de videojuegos que hayan sido adquiridas en el año 2007 por un precio igual o superior a los 10 millones de dólares y que tengan oficinas en la ciudad de Culver City.
+
+db.getCollection('companies').find({
+    "offices.city": "Culver City",
+    "acquisition.acquired_year": 2007,
+    "acquisition.price_amount": { $gte: 10000000 },
+    category_code: "games_video"
+},
+{
+    name: 1,
+    "acquisition.acquired_month": 1,
+    "acquisition.acquired_day": 1,
+    _id: 0
+})
+
+
+
+
+
